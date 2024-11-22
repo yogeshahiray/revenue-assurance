@@ -3,29 +3,34 @@ import os
 from kfp import compiler
 from kfp import dsl
 from kfp.dsl import InputPath, OutputPath
-
+import lzma
+import shutil
 from kfp import kubernetes
 
-
 @dsl.component(base_image="quay.io/modh/runtime-images:runtime-cuda-tensorflow-ubi9-python-3.9-2024a-20240523")
-def get_data(train_data_output_path: OutputPath(), validate_data_output_path: OutputPath()):
+def get_data(train_data_output_path: OutputPath()):
     import urllib.request
     print("starting download...")
     print("downloading training data")
-    url = "https://raw.githubusercontent.com/cfchase/fraud-detection/main/data/train.csv"
+    url = "https://github.com/tme-osx/TME-AIX/blob/main/revenueassurance/data/telecom_revass_data.csv.xz"
     urllib.request.urlretrieve(url, train_data_output_path)
+
+    # Extract the .xz file
+    with lzma.open(train_data_output_path, 'rb') as f_in:
+        with open("telecom_revass_data.csv", 'wb') as f_out:
+            shutil.copyfileobj(f_in, f_out)
     print("train data downloaded")
-    print("downloading validation data")
-    url = "https://raw.githubusercontent.com/cfchase/fraud-detection/main/data/validate.csv"
-    urllib.request.urlretrieve(url, validate_data_output_path)
-    print("validation data downloaded")
+    # print("downloading validation data")
+    # url = "https://raw.githubusercontent.com/cfchase/fraud-detection/main/data/validate.csv"
+    # urllib.request.urlretrieve(url, validate_data_output_path)
+    # print("validation data downloaded")
 
 
 @dsl.component(
     base_image="quay.io/modh/runtime-images:runtime-cuda-tensorflow-ubi9-python-3.9-2024a-20240523",
     packages_to_install=["onnx", "onnxruntime", "tf2onnx"],
 )
-def train_model(train_data_input_path: InputPath(), validate_data_input_path: InputPath(), model_output_path: OutputPath()):
+def train_model(train_data_input_path: InputPath(), model_output_path: OutputPath()):
     import numpy as np
     import pandas as pd
     from keras.models import Sequential
@@ -38,37 +43,51 @@ def train_model(train_data_input_path: InputPath(), validate_data_input_path: In
     import pickle
     from pathlib import Path
 
-    # Load the CSV data which we will use to train the model.
-    # It contains the following fields:
-    #   distancefromhome - The distance from home where the transaction happened.
-    #   distancefromlast_transaction - The distance from last transaction happened.
-    #   ratiotomedianpurchaseprice - Ratio of purchased price compared to median purchase price.
-    #   repeat_retailer - If it's from a retailer that already has been purchased from before.
-    #   used_chip - If the (credit card) chip was used.
-    #   usedpinnumber - If the PIN number was used.
-    #   online_order - If it was an online order.
-    #   fraud - If the transaction is fraudulent.
-
+    # fields:
+    # * ** Call_Duration **
+    # * ** Data_Usage **
+    # * ** SMS_Count **
+    # * ** Roaming_Indicator **
+    # * ** MobileWallet_Use **
+    # * ** Cost **
+    # * ** Cellular_Location_Distance **
+    # * ** Personal_Pin_Used **
+    # * ** Avg_Call_Duration **
+    # * ** Avg_Data_Usage **
+    # * ** Avg_Cost **
+    # * ** fraud ** - If the transaction is fraudulent.
 
     feature_indexes = [
-        1,  # distance_from_last_transaction
-        2,  # ratio_to_median_purchase_price
-        4,  # used_chip
-        5,  # used_pin_number
-        6,  # online_order
+        0,  # Call_Duration
+        1,  # Data_Usage
+        2,  # SMS_Count
+        3,  # Roaming_Indicator
+        4,  # MobileWallet_Use
+        6,  # Cost
+        7,  # Cellular_Location_Distance
+        8,  # Personal_Pin_Used
+        9,  # Avg_Call_Duration
+        10,  # Avg_Data_Usage
+        11  # Avg_Cost
     ]
 
     label_indexes = [
-        7  # fraud
+        12  # fraud
     ]
 
-    X_train = pd.read_csv(train_data_input_path)
-    y_train = X_train.iloc[:, label_indexes]
-    X_train = X_train.iloc[:, feature_indexes]
+    df = pd.read_csv('telecom_revass_data.csv')
+    X = df.iloc[:, feature_indexes].values
+    y = df.iloc[:, label_indexes].values
 
-    X_val = pd.read_csv(validate_data_input_path)
-    y_val = X_val.iloc[:, label_indexes]
-    X_val = X_val.iloc[:, feature_indexes]
+    print(df.info)
+
+    print(df.head)
+
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42, stratify=y)
+
+    # X_val = pd.read_csv(validate_data_input_path)
+    # y_val = X_val.iloc[:, label_indexes]
+    # X_val = X_val.iloc[:, feature_indexes]
 
     # Scale the data to remove mean and have unit variance. The data will be between -1 and 1, which makes it a lot easier for the model to learn than random (and potentially large) values.
     # It is important to only fit the scaler to the training data, otherwise you are leaking information about the global distribution of variables (which is influenced by the test set) into the training set.
@@ -106,15 +125,12 @@ def train_model(train_data_input_path: InputPath(), validate_data_input_path: In
 
     epochs = 2
     history = model.fit(X_train, y_train, epochs=epochs,
-                        validation_data=(scaler.transform(X_val.values), y_val),
                         verbose=True, class_weight=class_weights)
 
     # Save the model as ONNX for easy use of ModelMesh
     model_proto, _ = tf2onnx.convert.from_keras(model)
     print(model_output_path)
     onnx.save(model_proto, model_output_path)
-
-
 @dsl.component(
     base_image="quay.io/modh/runtime-images:runtime-cuda-tensorflow-ubi9-python-3.9-2024a-20240523",
     packages_to_install=["boto3", "botocore"]
@@ -159,7 +175,7 @@ def pipeline():
 
     upload_model_task = upload_model(input_model_path=onnx_file)
 
-    upload_model_task.set_env_variable(name="S3_KEY", value="models/fraud/1/model.onnx")
+    upload_model_task.set_env_variable(name="S3_KEY", value="models/rafm/1/rafmmodel.onnx")
 
     kubernetes.use_secret_as_env(
         task=upload_model_task,
