@@ -105,7 +105,7 @@ def train_model(train_data_input_path: InputPath(), model_output_path: OutputPat
     class_weights = class_weight.compute_class_weight('balanced', classes=np.unique(y_train), y=y_train.values.ravel())
     class_weights = {i: class_weights[i] for i in range(len(class_weights))}
 
-    # Build the model, the model we build here is a simple fully connected deep neural network, containing 3 hidden layers and one output layer.
+    # here, Build the model, the model we build here is a simple fully connected deep neural network, containing 3 hidden layers and one output layer.
 
     model = Sequential()
     model.add(Dense(32, activation='relu', input_dim=len(feature_indexes)))
