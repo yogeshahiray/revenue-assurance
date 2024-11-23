@@ -167,10 +167,10 @@ def upload_model(input_model_path: InputPath()):
 def pipeline():
     get_data_task = get_data()
     train_data_csv_file = get_data_task.outputs["train_data_output_path"]
-    validate_data_csv_file = get_data_task.outputs["validate_data_output_path"]
+    # validate_data_csv_file = get_data_task.outputs["validate_data_output_path"]
 
-    train_model_task = train_model(train_data_input_path=train_data_csv_file,
-                                   validate_data_input_path=validate_data_csv_file)
+    train_model_task = train_model(train_data_input_path=train_data_csv_file)
+                                   # validate_data_input_path=validate_data_csv_file)
     onnx_file = train_model_task.outputs["model_output_path"]
 
     upload_model_task = upload_model(input_model_path=onnx_file)
