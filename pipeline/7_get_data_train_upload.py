@@ -12,13 +12,14 @@ def get_data(train_data_output_path: OutputPath()):
     import urllib.request
     print("starting download...")
     print("downloading training data")
+
     url = "https://github.com/tme-osx/TME-AIX/blob/main/revenueassurance/data/telecom_revass_data.csv.xz"
     urllib.request.urlretrieve(url, train_data_output_path)
 
-    # Extract the .xz file
-    with lzma.open(train_data_output_path, 'rb') as f_in:
-        with open("telecom_revass_data.csv", 'wb') as f_out:
-            shutil.copyfileobj(f_in, f_out)
+    # # Extract the .xz file
+    # with lzma.open(train_data_output_path, 'rb') as f_in:
+    #     with open("telecom_revass_data.csv", 'wb') as f_out:
+    #         shutil.copyfileobj(f_in, f_out)
     print("train data downloaded")
     # print("downloading validation data")
     # url = "https://raw.githubusercontent.com/cfchase/fraud-detection/main/data/validate.csv"
@@ -75,7 +76,7 @@ def train_model(train_data_input_path: InputPath(), model_output_path: OutputPat
         12  # fraud
     ]
 
-    df = pd.read_csv('telecom_revass_data.csv')
+    df = pd.read_csv('data/telecom_revass_data.csv')
     X = df.iloc[:, feature_indexes].values
     y = df.iloc[:, label_indexes].values
 
