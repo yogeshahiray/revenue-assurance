@@ -1,5 +1,4 @@
 import os
-
 from kfp import compiler
 from kfp import dsl
 from kfp.dsl import InputPath, OutputPath
@@ -9,6 +8,7 @@ from kfp import kubernetes
 
 @dsl.component(base_image="quay.io/modh/runtime-images:runtime-cuda-tensorflow-ubi9-python-3.9-2024a-20240523")
 def get_data(train_data_output_path: OutputPath()):
+    import os
     import urllib.request
 
     aws_access_key_id = os.environ.get('AWS_ACCESS_KEY_ID')
