@@ -97,7 +97,7 @@ def train_model(train_data_input_path: InputPath(), model_output_path: OutputPat
         12  # fraud
     ]
 
-    df = pd.read_csv('data/telecom_revass_data.csv')
+    df = pd.read_csv(train_data_input_path)
     X = df.iloc[:, feature_indexes].values
     y = df.iloc[:, label_indexes].values
 
