@@ -10,11 +10,32 @@ from kfp import kubernetes
 @dsl.component(base_image="quay.io/modh/runtime-images:runtime-cuda-tensorflow-ubi9-python-3.9-2024a-20240523")
 def get_data(train_data_output_path: OutputPath()):
     import urllib.request
+
+    aws_access_key_id = os.environ.get('AWS_ACCESS_KEY_ID')
+    aws_secret_access_key = os.environ.get('AWS_SECRET_ACCESS_KEY')
+    endpoint_url = os.environ.get('AWS_S3_ENDPOINT')
+    region_name = os.environ.get('AWS_DEFAULT_REGION')
+    bucket_name = os.environ.get('AWS_S3_BUCKET')
+
+    s3_key = os.environ.get("S3_DATA_KEY")
     print("starting download...")
     print("downloading training data")
+    session = boto3.session.Session(aws_access_key_id=aws_access_key_id,
+                                    aws_secret_access_key=aws_secret_access_key)
 
-    url = "https://github.com/tme-osx/TME-AIX/blob/main/revenueassurance/data/telecom_revass_data.csv.xz"
-    urllib.request.urlretrieve(url, train_data_output_path)
+    s3_resource = session.resource(
+        's3',
+        config=botocore.client.Config(signature_version='s3v4'),
+        endpoint_url=endpoint_url,
+        region_name=region_name)
+
+    bucket = s3_resource.Bucket(bucket_name)
+    bucket.download_file(s3_key, train_data_output_path)
+
+    print(f"Data file downloaded to {train_data_output_path}")
+
+    # url = "https://github.com/tme-osx/TME-AIX/blob/main/revenueassurance/data/telecom_revass_data.csv.xz"
+    # urllib.request.urlretrieve(url, train_data_output_path)
 
     # # Extract the .xz file
     # with lzma.open(train_data_output_path, 'rb') as f_in:
@@ -167,6 +188,18 @@ def upload_model(input_model_path: InputPath()):
 @dsl.pipeline(name=os.path.basename(__file__).replace('.py', ''))
 def pipeline():
     get_data_task = get_data()
+    get_data_task.set_env_variable(name="S3_DATA_KEY", value="train-data/telecom_revass_data.csv")
+    kubernetes.use_secret_as_env(
+        task=get_data_task,
+        secret_name='aws-connection-rafm-storage',
+        secret_key_to_env={
+            'AWS_ACCESS_KEY_ID': 'AWS_ACCESS_KEY_ID',
+            'AWS_SECRET_ACCESS_KEY': 'AWS_SECRET_ACCESS_KEY',
+            'AWS_DEFAULT_REGION': 'AWS_DEFAULT_REGION',
+            'AWS_S3_BUCKET': 'AWS_S3_BUCKET',
+            'AWS_S3_ENDPOINT': 'AWS_S3_ENDPOINT',
+        })
+
     train_data_csv_file = get_data_task.outputs["train_data_output_path"]
     # validate_data_csv_file = get_data_task.outputs["validate_data_output_path"]
 
@@ -180,7 +213,7 @@ def pipeline():
 
     kubernetes.use_secret_as_env(
         task=upload_model_task,
-        secret_name='aws-connection-my-storage',
+        secret_name='aws-connection-rafm-storage',
         secret_key_to_env={
             'AWS_ACCESS_KEY_ID': 'AWS_ACCESS_KEY_ID',
             'AWS_SECRET_ACCESS_KEY': 'AWS_SECRET_ACCESS_KEY',
