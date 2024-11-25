@@ -118,7 +118,7 @@ def train_model(train_data_input_path: InputPath(), model_output_path: OutputPat
 
     scaler = StandardScaler()
 
-    X_train = scaler.fit_transform(X_train.values)
+    X_train = scaler.fit_transform(X_train)
 
     Path("artifact").mkdir(parents=True, exist_ok=True)
     with open("artifact/scaler.pkl", "wb") as handle:
