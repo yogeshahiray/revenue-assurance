@@ -125,7 +125,7 @@ def train_model(train_data_input_path: InputPath(), model_output_path: OutputPat
         pickle.dump(scaler, handle)
 
     # Since the dataset is unbalanced (it has many more non-fraud transactions than fraudulent ones), set a class weight to weight the few fraudulent transactions higher than the many non-fraud transactions.
-    class_weights = class_weight.compute_class_weight('balanced', classes=np.unique(y_train), y=y_train.values.ravel())
+    class_weights = class_weight.compute_class_weight('balanced', classes=np.unique(y_train), y=y_train.ravel())
     class_weights = {i: class_weights[i] for i in range(len(class_weights))}
 
     # here, Build the model, the model we build here is a simple fully connected deep neural network, containing 3 hidden layers and one output layer.
