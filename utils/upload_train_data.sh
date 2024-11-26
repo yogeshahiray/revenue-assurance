@@ -1,0 +1,1 @@
+python3 upload_train_data.py --data_file "/Users/yahire/Downloads/telecom_revass_data.csv" --bucket_name  "rafm-storage" --ns "rafm"
